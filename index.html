@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f6f5c"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Mi Pastillero">
+<title>Mi Pastillero</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Atkinson+Hyperlegible+Mono:wght@500;700&family=Fraunces:opsz,wght@9..144,600&display=swap">
+<style>
+/* Layout: una sola columna tipo app de teléfono — alertas arriba, tomas de hoy como agenda, luego el inventario de cada medicamento. */
+:root{
+  --bg:#f3f5f2; --surface:#ffffff; --ink:#18242b; --muted:#5c6a70; --line:#d8dfdb;
+  --accent:#1f6f5c; --accent-ink:#ffffff; --accent-soft:#dcefe8;
+  --warn:#9a5b00; --warn-soft:#fdf0d8; --crit:#b3261e; --crit-soft:#fbe3e1; --ok:#1f6f5c;
+  --wa:#1b7f4b; --wa-ink:#ffffff; --bell:#d32f2f; --green:#0F6E56;
+  --f-display:"Fraunces",Georgia,serif;
+  --f-body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-num:"Atkinson Hyperlegible Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11181b; --surface:#1a2428; --ink:#e7eeec; --muted:#9aaaa8; --line:#2c3a3e;
+  --accent:#5fc3a6; --accent-ink:#0b1a16; --accent-soft:#183a32; --green:#5fc3a6;
+  --warn:#f0b65a; --warn-soft:#3a2c14; --crit:#ff8a80; --crit-soft:#3d1c1a; --ok:#5fc3a6; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11181b; --surface:#1a2428; --ink:#e7eeec; --muted:#9aaaa8; --line:#2c3a3e;
+  --accent:#5fc3a6; --accent-ink:#0b1a16; --accent-soft:#183a32; --green:#5fc3a6;
+  --warn:#f0b65a; --warn-soft:#3a2c14; --crit:#ff8a80; --crit-soft:#3d1c1a; --ok:#5fc3a6; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.45}
+.wrap{max-width:560px;margin:0 auto;padding-block:20px 120px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:22px}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+h1{font-family:var(--f-display);font-weight:600;font-size:2rem;margin:0;line-height:1.05;text-wrap:balance}
+.date{color:var(--muted);font-size:.95rem}
+h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0 0 10px;font-weight:700}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn{border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:10px 14px;font-weight:700;font-size:.95rem;min-height:44px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--accent);padding-inline:8px}
+.btn.danger{color:var(--crit);border-color:var(--crit)}
+.btn.sm{min-height:36px;padding:6px 10px;font-size:.88rem}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.note{font-size:.88rem;color:var(--muted)}
+.syncline{font-size:.8rem;color:var(--muted)}
+
+/* alertas */
+.alerts{display:flex;flex-direction:column;gap:8px}
+.alert{border-radius:14px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start}
+.alert.warn{background:var(--warn-soft);color:var(--ink)}
+.alert.crit{background:var(--crit-soft)}
+.bell{flex:none;display:inline-grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--bell);color:#fff;transform-origin:50% 8%;animation:ring 1.6s ease-in-out infinite}
+.bell svg{width:26px;height:26px}
+.bell.sm{width:32px;height:32px}.bell.sm svg{width:19px;height:19px}
+@keyframes ring{0%,50%,100%{transform:rotate(0)}5%{transform:rotate(18deg)}10%{transform:rotate(-16deg)}15%{transform:rotate(14deg)}20%{transform:rotate(-12deg)}25%{transform:rotate(8deg)}30%{transform:rotate(-6deg)}35%{transform:rotate(3deg)}40%{transform:rotate(0)}}
+@media (prefers-reduced-motion:reduce){.bell{animation:none}}
+.alert{align-items:center}
+.med-top .bell{margin-left:auto}
+.alert b{display:block}
+.alert a{color:inherit;font-weight:700}
+
+/* hoy */
+.sound{display:flex;align-items:center;gap:12px;justify-content:space-between;background:var(--accent-soft);border-radius:14px;padding:10px 14px;flex-wrap:wrap}
+.sound p{margin:0;font-size:.92rem;flex:1 1 200px}
+.today{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.today li{display:grid;grid-template-columns:64px 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--line)}
+.today li:first-child{border-top:0}
+.today .t{font-family:var(--f-num);font-weight:700;font-size:1.15rem}
+.today .what{min-width:0}
+.today .what b{display:block;overflow-wrap:anywhere}
+.today .what span{font-size:.88rem;color:var(--muted)}
+.today li.done .t,.today li.done b{color:var(--muted);text-decoration:line-through}
+.pill{display:inline-block;font-size:.75rem;font-weight:700;border-radius:999px;padding:2px 8px;text-transform:uppercase;letter-spacing:.05em}
+.pill.late{background:var(--crit-soft);color:var(--crit)}
+.pill.ok{background:var(--accent-soft);color:var(--ok)}
+.empty{background:var(--surface);border:1.5px dashed var(--line);border-radius:16px;padding:22px 18px;display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+.empty p{margin:0}
+
+/* medicamentos */
+.meds{display:flex;flex-direction:column;gap:12px}
+.med{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.med.warn{border-color:var(--warn)} .med.crit{border-color:var(--crit)}
+.med-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.med h3{margin:0;font-size:1.2rem;overflow-wrap:anywhere}
+.rx{font-size:.9rem;color:var(--muted)}
+.tag{font-size:.72rem;border:1px solid var(--line);border-radius:6px;padding:1px 6px;color:var(--muted);margin-left:6px;vertical-align:middle;font-weight:700}
+.gauge{height:12px;border-radius:6px;background:var(--line);overflow:hidden}
+.gauge i{display:block;height:100%;background:var(--ok);border-radius:6px}
+.med.warn .gauge i{background:var(--warn)} .med.crit .gauge i{background:var(--crit)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stats div{display:flex;flex-direction:column}
+.stats .k{font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700}
+.stats .v{font-family:var(--f-num);font-weight:700;font-size:1.15rem}
+.med.warn .days{color:var(--warn)} .med.crit .days{color:var(--crit)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.cal{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.88rem}
+.cal a{color:var(--accent);font-weight:700}
+details summary{cursor:pointer;color:var(--accent);font-weight:700;font-size:.9rem}
+details[open] summary{margin-bottom:8px}
+
+/* FAB */
+.fab{position:fixed;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:5;border:0;background:var(--accent);color:var(--accent-ink);font-weight:700;border-radius:999px;padding:16px 22px;font-size:1rem;box-shadow:0 6px 20px rgb(0 0 0 / .25)}
+
+/* hoja de formulario */
+.sheet-bg{position:fixed;inset:0;background:rgb(0 0 0 / .45);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);color:var(--ink);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:20px 20px 0 0;padding:20px max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:14px}
+.sheet h2{font-family:var(--f-display);font-size:1.5rem;text-transform:none;letter-spacing:0;color:var(--ink);margin:0}
+label{display:flex;flex-direction:column;gap:4px;font-weight:700;font-size:.92rem}
+label small{font-weight:400;color:var(--muted)}
+input,select,textarea{font:inherit;font-weight:400;font-size:1.05rem;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);width:100%;min-height:46px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end}
+.times{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.times .chip{display:flex;align-items:center;gap:4px;background:var(--bg);border:1.5px solid var(--line);border-radius:10px;padding:4px 4px 4px 8px}
+.times .chip input{border:0;background:transparent;padding:4px;min-height:36px;width:auto;font-family:var(--f-num)}
+.times .chip button{border:0;background:transparent;color:var(--crit);font-size:1.2rem;width:32px;height:32px}
+.presets{display:flex;gap:6px;flex-wrap:wrap}
+.preview{background:var(--accent-soft);border-radius:12px;padding:10px 12px;font-size:.92rem}
+.err{color:var(--crit);font-size:.9rem;font-weight:700}
+.sheet-actions{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap}
+
+/* alarma */
+.alarm{position:fixed;inset:0;z-index:30;background:var(--accent);color:var(--accent-ink);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:18px;padding:24px max(20px,env(safe-area-inset-right,0px)) 24px max(20px,env(safe-area-inset-left,0px))}
+.alarm .big{font-family:var(--f-num);font-size:4rem;font-weight:700;line-height:1}
+.alarm h2{font-family:var(--f-display);font-size:2rem;color:inherit;text-transform:none;letter-spacing:0;margin:0;overflow-wrap:anywhere}
+.alarm p{margin:0;font-size:1.2rem}
+.alarm .btn{min-height:56px;font-size:1.1rem;padding-inline:26px}
+.alarm .btn.primary{background:var(--accent-ink);color:var(--accent);border-color:var(--accent-ink)}
+.alarm .btn.ghost{color:var(--accent-ink)}
+.ring{width:84px;height:84px;border-radius:50%;border:6px solid currentColor;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.12);opacity:.6}}
+@media (prefers-reduced-motion:reduce){.ring{animation:none}}
+/* marca Green */
+.brandrow{display:flex;gap:12px;align-items:flex-start;min-width:0}
+.glogo{width:48px;height:48px;flex:none;margin-top:4px}
+@media (max-width:420px){h1{font-size:1.7rem}.glogo{width:42px;height:42px}}
+.head-right{flex:none}
+.gby{font-size:.9rem;font-weight:700;color:var(--green)}
+.gfoot{display:flex;align-items:center;gap:10px;font-size:.9rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+.gfoot b{color:var(--green)}
+/* encabezado / familia */
+.head-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+/* confirmación */
+.done-box{display:flex;flex-direction:column;gap:14px}
+.check{width:56px;height:56px;border-radius:50%;background:var(--accent-soft);color:var(--ok);display:grid;place-items:center;font-size:2rem;font-weight:700}
+.stamp{font-size:1.4rem;font-weight:700;margin-top:4px}
+.wa{display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none;background:var(--wa);color:var(--wa-ink);border-radius:14px;min-height:58px;padding:12px 18px;font-weight:700;font-size:1.1rem;text-align:center}
+.wa svg{flex:none}
+.wa.sent{background:var(--accent-soft);color:var(--ok)}
+.wa-list{display:flex;flex-direction:column;gap:10px}
+/* familia */
+.fam{display:flex;flex-direction:column;gap:10px}
+.fam-row{display:grid;grid-template-columns:1fr 1.2fr 40px;gap:8px;align-items:end}
+.fam-row button{border:0;background:transparent;color:var(--crit);font-size:1.4rem;height:46px}
+.switch{flex-direction:row;align-items:center;gap:10px;font-weight:400}
+.switch input{width:24px;height:24px;min-height:0;accent-color:var(--accent)}
+/* historial */
+.hist-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.hist-tools select{width:auto;flex:1 1 180px;min-height:44px}
+.hday{margin:14px 0 6px;font-weight:700;font-size:.95rem}
+.hday:first-child{margin-top:0}
+.hlist{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.hlist li{display:grid;grid-template-columns:64px 1fr;gap:12px;padding:10px 14px;border-top:1px solid var(--line);align-items:start}
+.hlist li:first-child{border-top:0}
+.hlist .t{font-family:var(--f-num);font-weight:700;font-size:1.1rem}
+.hlist .what{min-width:0}
+.hlist .what b{overflow-wrap:anywhere}
+.hlist .meta{font-size:.86rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.skip{background:var(--crit-soft);color:var(--crit)}
+.pill.fam{background:transparent;border:1px solid var(--line);color:var(--muted);text-transform:none;letter-spacing:0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(90px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;z-index:40;font-weight:700;max-width:calc(100% - 32px)}
+@media (max-width:380px){.fam-row{grid-template-columns:1fr 40px}.fam-row label:nth-child(2){grid-column:1}}
+@media (max-width:380px){.stats{grid-template-columns:1fr 1fr}.row2{grid-template-columns:1fr}}
+[hidden]{display:none!important}
+body{margin:0}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+</style>
+</head><body>
+
+<div class="wrap">
+  <header>
+    <div class="brandrow">
+      <img class="glogo" src="data:image/png;base64,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" alt="Green Consultores" width="48" height="48">
+      <div>
+      <h1>Mi Pastillero</h1>
+      <div class="gby">por Green Consultores</div>
+      <div class="date" id="today-date"></div>
+      </div>
+    </div>
+    <div class="head-right">
+      <button class="btn sm" data-act="family" id="family-btn">Familia</button>
+      <div class="syncline" id="sync"></div>
+    </div>
+  </header>
+
+  <section class="alerts" id="alerts" aria-live="polite"></section>
+
+  <section>
+    <h2>Tomas de hoy</h2>
+    <div class="sound" id="sound-box">
+      <p id="sound-text"><b>Cada vez que abras la app</b>, toca “Activar sonido”. Sin eso, el teléfono no deja sonar la alarma.</p>
+      <button class="btn primary sm" id="sound-btn">Activar sonido</button>
+    </div>
+    <div style="height:10px"></div>
+    <div id="today"></div>
+  </section>
+
+  <section>
+    <h2>Mis medicamentos</h2>
+    <div class="meds" id="meds"></div>
+  </section>
+
+  <section>
+    <h2>Historial de tomas</h2>
+    <div class="hist-tools">
+      <select id="hist-filter" aria-label="Filtrar por medicamento"></select>
+      <button class="btn sm" data-act="csv" id="csv-btn" hidden>Descargar planilla</button>
+      <button class="btn sm" data-act="copy">Copiar</button>
+    </div>
+    <div id="history"></div>
+  </section>
+
+  <div class="gfoot"><img src="data:image/png;base64,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" alt="" width="28" height="28"><span>Desarrollado por <b>Green Consultores</b> · greenspa.cl</span></div>
+  <p class="note">Las alarmas suenan mientras esta página esté abierta. Para que suenen con el teléfono bloqueado, usa “Crear alarma en Google Calendar” en cada medicamento. Esta app no reemplaza la indicación de tu médico.</p>
+</div>
+
+<button class="fab" id="add-btn">+ Agregar medicamento</button>
+<div id="sheet-root"></div>
+<div id="alarm-root"></div>
+
+<script>
+(() => {
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2,"0");
+const dayKey = (d=new Date()) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const hmOf = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const nowHM = () => hmOf(new Date());
+const fmtDate = d => d.toLocaleDateString("es-CL",{weekday:"long",day:"numeric",month:"long"});
+const fmtShort = d => d.toLocaleDateString("es-CL",{day:"numeric",month:"short"});
+const cap = s => s.replace(/^./,c=>c.toUpperCase());
+const fmtQty = n => (Math.round(n*100)/100).toLocaleString("es-CL");
+const UNITS = {comprimidos:["comprimido","comprimidos"],cápsulas:["cápsula","cápsulas"],ml:["ml","ml"],gotas:["gota","gotas"],sobres:["sobre","sobres"],inhalaciones:["inhalación","inhalaciones"],unidades:["unidad","unidades"]};
+const u = (m,n) => (UNITS[m.unit]||UNITS.unidades)[n===1?0:1];
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const clone = o => JSON.parse(JSON.stringify(o));
+const BELL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a1.5 1.5 0 0 0-1.5 1.5v.7A6.5 6.5 0 0 0 5.5 10.5v4.3L3.7 17a1 1 0 0 0 .8 1.6h15a1 1 0 0 0 .8-1.6l-1.8-2.2v-4.3a6.5 6.5 0 0 0-5-6.3v-.7A1.5 1.5 0 0 0 12 2Zm-2.5 17.6a2.5 2.5 0 0 0 5 0Z"/></svg>';
+const WA_ICON = '<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.8-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.4.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3Z"/></svg>';
+
+/* ---------- estado ---------- */
+let meds = [];          // medicamentos
+let logs = [];          // registro de tomas: {id, medId, name, dose, unit, day, sched, at, status, avisos[]}
+let cfg = {patient:"", family:[], askAfter:true};
+const LS = {meds:"mi-pastillero-v1", logs:"mi-pastillero-log-v1", cfg:"mi-pastillero-cfg-v1"};
+let mode = "local", col = null, logCol = null, cfgDoc = null;
+function lsRead(k,def){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):def; }catch(e){ return def; } }
+function lsWrite(){ try{ localStorage.setItem(LS.meds,JSON.stringify(meds)); localStorage.setItem(LS.logs,JSON.stringify(logs.slice(0,1500))); localStorage.setItem(LS.cfg,JSON.stringify(cfg)); }catch(e){} }
+function setSync(t){ $("#sync").textContent = t; }
+const cloudFail = () => setSync("No se pudo guardar en la nube; quedó en este teléfono.");
+
+async function saveMed(m){
+  const i = meds.findIndex(x=>x.id===m.id); if(i>=0) meds[i]=m; else meds.push(m);
+  lsWrite(); render();
+  if(mode==="db"){ const {id,...b}=m; col.doc(id).set(clone(b)).catch(cloudFail); }
+}
+async function removeMed(id){
+  meds = meds.filter(x=>x.id!==id); lsWrite(); render();
+  if(mode==="db") col.doc(id).delete().catch(()=>{});
+}
+function saveLog(e){
+  const i = logs.findIndex(x=>x.id===e.id); if(i>=0) logs[i]=e; else logs.unshift(e);
+  logs.sort((a,b)=>b.at.localeCompare(a.at));
+  lsWrite(); render();
+  if(mode==="db"){ const {id,...b}=e; logCol.doc(id).set(clone(b)).catch(cloudFail); }
+}
+function removeLog(id){
+  logs = logs.filter(x=>x.id!==id); lsWrite(); render();
+  if(mode==="db") logCol.doc(id).delete().catch(()=>{});
+}
+function saveCfg(c){
+  cfg = c; lsWrite(); render();
+  if(mode==="db") cfgDoc.set(clone(cfg)).catch(cloudFail);
+}
+
+async function initStore(){
+  meds = lsRead(LS.meds,[]); logs = lsRead(LS.logs,[]); cfg = {...cfg, ...lsRead(LS.cfg,{})};
+  render(); setSync("Guardado en este teléfono");
+  if(!window.claude || !window.claude.use) return;
+  let db=null, user=null;
+  try{ [db,user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]); }catch(e){}
+  if(!db || !user) return;
+  let id; try{ id = await user.id(); }catch(e){ return; }
+  if(!id) return;
+  col = db.collection("data/users/"+id);
+  logCol = col.doc("historial").collection("tomas");
+  cfgDoc = col.doc("cfg").collection("ajustes").doc("familia");
+  setSync("Conectando…");
+  const timer = setTimeout(()=>{ if(mode!=="db") setSync("Sin conexión: usando lo guardado en este teléfono"); }, 10000);
+  const ready = {meds:false, logs:false, cfg:false};
+  const goLive = () => { if(ready.meds){ clearTimeout(timer); mode="db"; setSync("Guardado en tu cuenta"); } };
+  // en cada colección: si la nube está vacía la primera vez, se sube lo que había en el teléfono
+  col.onSnapshot(snap=>{
+    if(snap.metadata.fromCache && !ready.meds) return;
+    const remote = snap.docs.filter(d=>d.id!=="historial"&&d.id!=="cfg").map(d=>({id:d.id,...clone(d.data())}));
+    if(!ready.meds){ ready.meds=true; if(!remote.length && meds.length){ meds.forEach(m=>{const {id,...b}=m; col.doc(id).set(clone(b)).catch(()=>{});}); goLive(); return; } }
+    meds = remote; lsWrite(); render(); goLive();
+  }, ()=>{ clearTimeout(timer); });
+  logCol.orderBy("at","desc").limit(1000).onSnapshot(snap=>{
+    if(snap.metadata.fromCache && !ready.logs) return;
+    const remote = snap.docs.map(d=>({id:d.id,...clone(d.data())}));
+    if(!ready.logs){ ready.logs=true; if(!remote.length && logs.length){ logs.forEach(e=>{const {id,...b}=e; logCol.doc(id).set(clone(b)).catch(()=>{});}); goLive(); return; } }
+    logs = remote; lsWrite(); render(); goLive();
+  }, ()=>{});
+  cfgDoc.onSnapshot(snap=>{
+    if(snap.metadata.fromCache && !ready.cfg) return;
+    if(!ready.cfg){ ready.cfg=true; if(!snap.exists && (cfg.family.length||cfg.patient)){ cfgDoc.set(clone(cfg)).catch(()=>{}); goLive(); return; } }
+    if(snap.exists){ cfg = {...cfg, ...clone(snap.data())}; lsWrite(); render(); }
+    goLive();
+  }, ()=>{});
+}
+
+/* ---------- cálculos ---------- */
+const perDay = m => (Number(m.dose)||0) * (m.times||[]).length;
+const daysLeft = m => perDay(m)>0 ? Math.floor(m.stock / perDay(m)) : Infinity;
+function level(m){ if(m.stock < m.dose) return "crit"; if(daysLeft(m)<=7) return "warn"; return "ok"; }
+function runOut(m){ const d=new Date(); d.setDate(d.getDate()+daysLeft(m)); return d; }
+const logFor = (m,t,day=dayKey()) => logs.find(e=>e.medId===m.id && e.sched===t && e.day===day);
+const lateMin = e => { if(!e.sched) return 0; const [h,mi]=e.sched.split(":").map(Number); const [y,mo,d]=e.day.split("-").map(Number); return Math.round((new Date(e.at) - new Date(y,mo-1,d,h,mi))/60000); };
+
+/* ---------- tomar / omitir / deshacer ---------- */
+function takeDose(m,time){
+  if(logFor(m,time)) return null;
+  const e = {id:uid(), medId:m.id, name:m.name, dose:Number(m.dose), unit:m.unit, day:dayKey(), sched:time, at:new Date().toISOString(), status:"tomada", avisos:[]};
+  saveMed({...m, stock: Math.max(0, +(m.stock - m.dose).toFixed(2))});
+  saveLog(e);
+  return e;
+}
+function skipDose(m,time){
+  if(logFor(m,time)) return;
+  saveLog({id:uid(), medId:m.id, name:m.name, dose:Number(m.dose), unit:m.unit, day:dayKey(), sched:time, at:new Date().toISOString(), status:"omitida", avisos:[]});
+}
+function undoDose(m,time){
+  const e = logFor(m,time); if(!e) return;
+  if(e.status==="tomada") saveMed({...m, stock: +(m.stock + Number(e.dose)).toFixed(2)});
+  removeLog(e.id);
+}
+
+/* ---------- WhatsApp a la familia ---------- */
+function waNumber(p){
+  let d = String(p||"").replace(/\D/g,"");
+  if(d.startsWith("00")) d = d.slice(2);
+  if(d.length===9 && d[0]==="9") d = "56"+d;      // celular chileno sin código de país
+  if(d.length===8) d = "569"+d;
+  return d;
+}
+function waMessage(e){
+  const d = new Date(e.at), who = cfg.patient ? cfg.patient : "Tu familiar";
+  const late = lateMin(e);
+  let msg = `💊 ${who} tomó ${e.name} (${fmtQty(e.dose)} ${(UNITS[e.unit]||UNITS.unidades)[e.dose===1?0:1]}) el ${fmtDate(d)} a las ${hmOf(d)}.`;
+  if(late > 30) msg += ` Estaba programada para las ${e.sched}.`;
+  return msg + " — Aviso enviado desde Mi Pastillero";
+}
+const waLink = (f,e) => `https://wa.me/${waNumber(f.phone)}?text=${encodeURIComponent(waMessage(e))}`;
+function markAviso(logId, name){
+  const e = logs.find(x=>x.id===logId); if(!e) return;
+  if(!(e.avisos||[]).includes(name)) saveLog({...e, avisos:[...(e.avisos||[]), name]});
+}
+
+/* ---------- Google Calendar ---------- */
+const gStamp = d => `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+function gcalDose(m,time){
+  const d=new Date(); const [h,mi]=time.split(":").map(Number);
+  const s=new Date(d.getFullYear(),d.getMonth(),d.getDate(),h,mi), e=new Date(s.getTime()+10*60000);
+  const p = new URLSearchParams({action:"TEMPLATE",text:`Tomar ${m.name} (${fmtQty(m.dose)} ${u(m,m.dose)})`,dates:`${gStamp(s)}/${gStamp(e)}`,ctz:Intl.DateTimeFormat().resolvedOptions().timeZone||"America/Santiago",recur:"RRULE:FREQ=DAILY",details:`Indicación médica: ${fmtQty(m.dose)} ${u(m,m.dose)} a las ${m.times.join(", ")}.`});
+  return "https://calendar.google.com/calendar/render?"+p.toString();
+}
+function gcalBuy(m){
+  const d = runOut(m); d.setDate(d.getDate()-7); const t=new Date(); if(d<t) d.setTime(t.getTime());
+  const n = new Date(d); n.setDate(n.getDate()+1);
+  const ds = x => `${x.getFullYear()}${pad(x.getMonth()+1)}${pad(x.getDate())}`;
+  const p = new URLSearchParams({action:"TEMPLATE",text:`Comprar ${m.name}: queda para una semana`,dates:`${ds(d)}/${ds(n)}`,details:`Se acaba aprox. el ${fmtShort(runOut(m))}.`});
+  return "https://calendar.google.com/calendar/render?"+p.toString();
+}
+
+/* ---------- render ---------- */
+function render(){
+  $("#today-date").textContent = cap(fmtDate(new Date()));
+  $("#family-btn").textContent = cfg.family.length ? `Familia (${cfg.family.length})` : "Familia";
+  renderAlerts(); renderToday(); renderMeds(); renderHistory();
+}
+function renderAlerts(){
+  const out = meds.filter(m=>level(m)!=="ok").sort((a,b)=>daysLeft(a)-daysLeft(b)).map(m=>{
+    const l=level(m), d=daysLeft(m);
+    const msg = l==="crit" ? `Te quedan ${fmtQty(m.stock)} ${u(m,m.stock)}: no alcanza para la próxima toma.`
+      : `Te queda para ${d} ${d===1?"día":"días"} (${fmtQty(m.stock)} ${u(m,m.stock)}). Se acaba el ${fmtShort(runOut(m))}.`;
+    return `<div class="alert ${l}" role="status"><span class="bell" aria-hidden="true">${BELL}</span><div><b>${l==="crit"?"Sin saldo":"Compra pronto"}: ${esc(m.name)}</b>${msg} <a href="${gcalBuy(m)}" target="_blank" rel="noopener">Agendar compra</a></div></div>`;
+  });
+  $("#alerts").innerHTML = out.join(""); $("#alerts").hidden = !out.length;
+}
+function todayDoses(){
+  const list=[]; meds.forEach(m=>(m.times||[]).forEach(t=>list.push({m,t,log:logFor(m,t)})));
+  return list.sort((a,b)=>a.t.localeCompare(b.t));
+}
+function renderToday(){
+  const el = $("#today");
+  if(!meds.length){ el.innerHTML = `<div class="empty"><p><b>Aún no tienes medicamentos.</b></p><p class="note">Agrega cada medicamento con su nombre, cuántas unidades trae la caja, cuánto te indicó el médico y a qué hora tomarlo. La app te avisará a esa hora, descontará cada toma, guardará el día y la hora en que la tomaste y te alertará cuando quede para una semana.</p><div class="actions"><button class="btn primary" data-act="add">Agregar mi primer medicamento</button><button class="btn" data-act="example">Ver con ejemplo</button></div></div>`; return; }
+  const now = nowHM();
+  const rows = todayDoses().map(({m,t,log})=>{
+    const done = !!log, late = !done && t < now;
+    let status = "";
+    if(log && log.status==="tomada") status = `<span class="pill ok">Tomada ${hmOf(new Date(log.at))}</span>`;
+    else if(log) status = `<span class="pill skip">Omitida</span>`;
+    else if(late) status = `<span class="pill late">Atrasada</span>`;
+    const btn = done ? `<button class="btn ghost sm" data-act="undo" data-id="${m.id}" data-t="${t}">Deshacer</button>`
+                     : `<button class="btn primary sm" data-act="take" data-id="${m.id}" data-t="${t}" ${m.stock<m.dose?"disabled":""}>Tomé</button>`;
+    return `<li class="${done?"done":""}"><span class="t">${t}</span><div class="what"><b>${esc(m.name)}</b><span>${fmtQty(m.dose)} ${u(m,m.dose)} ${status}</span></div>${btn}</li>`;
+  });
+  el.innerHTML = rows.length ? `<ul class="today">${rows.join("")}</ul>` : `<p class="note">No hay horarios configurados.</p>`;
+}
+function renderMeds(){
+  $("#meds").innerHTML = meds.map(m=>{
+    const l=level(m), d=daysLeft(m), pct=Math.max(0,Math.min(100, m.stock/(m.pres||1)*100));
+    return `<article class="med ${l==="ok"?"":l}">
+      <div class="med-top">${l==="ok"?"":`<span class="bell sm" role="img" aria-label="Queda poco medicamento" style="order:2">${BELL}</span>`}<div><h3>${esc(m.name)}${m.example?'<span class="tag">EJEMPLO</span>':""}</h3>
+        <div class="rx">Indicación: ${fmtQty(m.dose)} ${u(m,m.dose)} · ${m.times.length} ${m.times.length===1?"vez":"veces"} al día (${m.times.join(" · ")})</div>${m.note?`<div class="rx">${esc(m.note)}</div>`:""}</div></div>
+      <div class="gauge" role="img" aria-label="Saldo ${Math.round(pct)}% de la caja"><i style="width:${pct}%"></i></div>
+      <div class="stats">
+        <div><span class="k">Saldo</span><span class="v">${fmtQty(m.stock)}<small class="note"> / ${fmtQty(m.pres)}</small></span></div>
+        <div><span class="k">Alcanza</span><span class="v days">${d===Infinity?"—":d+" d"}</span></div>
+        <div><span class="k">Se acaba</span><span class="v">${d===Infinity?"—":fmtShort(runOut(m))}</span></div>
+      </div>
+      <div class="actions">
+        <button class="btn sm" data-act="refill" data-id="${m.id}">Compré otra caja (+${fmtQty(m.pres)})</button>
+        <button class="btn ghost sm" data-act="edit" data-id="${m.id}">Editar</button>
+      </div>
+      <details><summary>Crear alarma en Google Calendar</summary>
+        <div class="cal">${m.times.map(t=>`<a href="${gcalDose(m,t)}" target="_blank" rel="noopener">Alarma diaria ${t}</a>`).join("")}<a href="${gcalBuy(m)}" target="_blank" rel="noopener">Aviso de compra</a></div>
+      </details>
+    </article>`;
+  }).join("");
+}
+
+/* ---------- historial ---------- */
+let histFilter = "", histDays = 14;
+function filteredLogs(){ return logs.filter(e=>!histFilter || e.medId===histFilter); }
+function statusPill(e){
+  if(e.status==="omitida") return `<span class="pill skip">Omitida</span>`;
+  const l = lateMin(e);
+  if(l < -30) return `<span class="pill warn">${-l>=60?Math.floor(-l/60)+" h "+(-l%60)+" min":-l+" min"} antes</span>`;
+  if(l > 30) return `<span class="pill warn">${l>=60?Math.floor(l/60)+" h "+(l%60)+" min":l+" min"} tarde</span>`;
+  return `<span class="pill ok">A tiempo</span>`;
+}
+function renderHistory(){
+  const sel = $("#hist-filter");
+  const names = {}; logs.forEach(e=>names[e.medId]=e.name); meds.forEach(m=>names[m.id]=m.name);
+  sel.innerHTML = `<option value="">Todos los medicamentos</option>` + Object.entries(names).map(([id,n])=>`<option value="${id}" ${id===histFilter?"selected":""}>${esc(n)}</option>`).join("");
+  const list = filteredLogs();
+  if(!list.length){ $("#history").innerHTML = `<div class="empty"><p class="note">Aquí quedará registrado el día y la hora de cada toma que confirmes, y las que se omitan. Puedes copiarlo o descargarlo para mostrárselo al médico.</p></div>`; return; }
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-histDays+1); const ck = dayKey(cutoff);
+  const groups = {};
+  list.forEach(e=>{ if(e.day>=ck) (groups[e.day] = groups[e.day]||[]).push(e); });
+  const today = dayKey(), y = new Date(); y.setDate(y.getDate()-1); const yk = dayKey(y);
+  let html = Object.keys(groups).sort().reverse().map(day=>{
+    const [Y,M,D]=day.split("-").map(Number); const label = day===today?"Hoy":day===yk?"Ayer":cap(fmtDate(new Date(Y,M-1,D)));
+    const items = groups[day].sort((a,b)=>b.at.localeCompare(a.at)).map(e=>`<li><span class="t">${e.status==="tomada"?hmOf(new Date(e.at)):"—"}</span><div class="what"><b>${esc(e.name)}</b><div class="meta"><span>${fmtQty(e.dose)} ${(UNITS[e.unit]||UNITS.unidades)[e.dose===1?0:1]} · programada ${e.sched}</span>${statusPill(e)}${(e.avisos||[]).length?`<span class="pill fam">Avisado a ${esc(e.avisos.join(", "))}</span>`:""}</div></div></li>`).join("");
+    return `<div class="hday">${label}</div><ul class="hlist">${items}</ul>`;
+  }).join("");
+  if(list.some(e=>e.day<ck)) html += `<div style="height:10px"></div><button class="btn sm" data-act="more">Ver ${histDays} días más</button>`;
+  $("#history").innerHTML = html || `<p class="note">Sin registros en los últimos ${histDays} días.</p>`;
+}
+function historyRows(){
+  return filteredLogs().slice().sort((a,b)=>a.at.localeCompare(b.at)).map(e=>{
+    const d=new Date(e.at), [Y,M,D]=e.day.split("-");
+    return {fecha:`${D}-${M}-${Y}`, prog:e.sched, real:e.status==="tomada"?hmOf(d):"", med:e.name, dosis:`${fmtQty(e.dose)} ${(UNITS[e.unit]||UNITS.unidades)[e.dose===1?0:1]}`, estado:e.status==="tomada"?"Tomada":"Omitida", atraso:e.status==="tomada"?Math.max(0,lateMin(e)):"", avisos:(e.avisos||[]).join(", ")};
+  });
+}
+function historyCSV(){
+  const q = v => `"${String(v).replace(/"/g,'""')}"`;
+  const head = ["Fecha","Hora programada","Hora real","Medicamento","Dosis","Estado","Atraso (min)","Avisado a"];
+  return "﻿" + [head.map(q).join(";"), ...historyRows().map(r=>[r.fecha,r.prog,r.real,r.med,r.dosis,r.estado,r.atraso,r.avisos].map(q).join(";"))].join("\r\n");
+}
+function historyText(){
+  const who = cfg.patient ? ` de ${cfg.patient}` : "";
+  return `Historial de tomas${who} — Mi Pastillero\n` + historyRows().map(r=>`${r.fecha}  ${r.real||"--:--"} (prog. ${r.prog})  ${r.med}  ${r.dosis}  ${r.estado}${r.atraso>30?` · ${r.atraso} min tarde`:""}`).join("\n");
+}
+function toast(t){ const el=document.createElement("div"); el.className="toast"; el.textContent=t; document.body.appendChild(el); setTimeout(()=>el.remove(),2600); }
+
+/* ---------- hojas: medicamento, familia, confirmación ---------- */
+let sheet = null;       // {type:"med"|"family"|"done", ...}
+let confirmDel = false;
+const closeSheet = () => { sheet=null; $("#sheet-root").innerHTML=""; };
+function openMed(m){
+  sheet = {type:"med", e: m ? {...m, times:[...m.times]} : {id:uid(), name:"", unit:"comprimidos", pres:30, stock:30, dose:1, times:["08:00"], note:""}, isNew:!m};
+  confirmDel=false; drawSheet();
+}
+function openFamily(){ sheet = {type:"family", c: clone(cfg)}; if(!sheet.c.family.length) sheet.c.family=[{name:"",phone:""}]; drawSheet(); }
+function openDone(e){ sheet = {type:"done", logId:e.id}; drawSheet(); }
+function previewText(e){
+  const pd=(Number(e.dose)||0)*e.times.length, dl=pd>0?Math.floor((Number(e.stock)||0)/pd):null;
+  return pd>0?`Consumes ${fmtQty(pd)} ${u(e,pd)} al día. Con el saldo actual te alcanza para <b>${dl} ${dl===1?"día":"días"}</b>. Te avisaremos cuando quede para 7 días.`:"Indica la dosis y al menos un horario.";
+}
+function drawSheet(){
+  if(!sheet){ $("#sheet-root").innerHTML=""; return; }
+  let body = "";
+  if(sheet.type==="med"){
+    const e = sheet.e;
+    body = `<form class="sheet" id="f" novalidate>
+    <h2>${sheet.isNew?"Nuevo medicamento":"Editar medicamento"}</h2>
+    <label for="f-name">Nombre del medicamento <small>Ej.: Losartán 50 mg</small><input id="f-name" value="${esc(e.name)}" autocomplete="off"></label>
+    <div class="row2">
+      <label for="f-unit">Unidad<select id="f-unit">${Object.keys(UNITS).map(k=>`<option ${k===e.unit?"selected":""}>${k}</option>`).join("")}</select></label>
+      <label for="f-pres">Cantidad total de la presentación<input id="f-pres" type="number" inputmode="decimal" min="0" step="any" value="${e.pres}"></label>
+    </div>
+    <div class="row2">
+      <label for="f-dose">Cantidad indicada por el médico <small>por toma</small><input id="f-dose" type="number" inputmode="decimal" min="0" step="any" value="${e.dose}"></label>
+      <label for="f-stock">Saldo actual <small>lo que te queda hoy</small><input id="f-stock" type="number" inputmode="decimal" min="0" step="any" value="${e.stock}"></label>
+    </div>
+    <div><label style="margin-bottom:6px">Horarios de toma</label>
+      <div class="presets"><button type="button" class="btn sm" data-preset="1">1 vez al día</button><button type="button" class="btn sm" data-preset="2">Cada 12 h</button><button type="button" class="btn sm" data-preset="3">Cada 8 h</button></div>
+      <div style="height:8px"></div>
+      <div class="times">${e.times.map((t,i)=>`<span class="chip"><input type="time" id="f-time-${i}" data-ti="${i}" value="${t}" aria-label="Horario ${i+1}"><button type="button" data-rm="${i}" aria-label="Quitar horario">×</button></span>`).join("")}<button type="button" class="btn ghost sm" data-act="add-time">+ Horario</button></div>
+    </div>
+    <label for="f-note">Nota <small>opcional, ej.: con comida</small><input id="f-note" value="${esc(e.note)}"></label>
+    <div class="preview" id="f-prev">${previewText(e)}</div>
+    <div class="err" id="f-err" hidden></div>
+    <div class="sheet-actions">
+      <div class="actions">${sheet.isNew?"":(confirmDel?`<button type="button" class="btn danger" data-act="del-yes">Sí, eliminar</button><button type="button" class="btn ghost" data-act="del-no">No</button>`:`<button type="button" class="btn ghost" style="color:var(--crit)" data-act="del">Eliminar</button>`)}</div>
+      <div class="actions"><button type="button" class="btn" data-act="close">Cancelar</button><button type="submit" class="btn primary">Guardar</button></div>
+    </div></form>`;
+  } else if(sheet.type==="family"){
+    const c = sheet.c;
+    body = `<form class="sheet" id="fam-form" novalidate>
+      <h2>Avisar a la familia</h2>
+      <p class="note" style="margin:0">Cuando confirmes una toma, aparecerá un botón para mandar un WhatsApp a cada familiar con el medicamento, el día y la hora. Solo tienes que tocar “Enviar” en WhatsApp.</p>
+      <label for="c-patient">Tu nombre <small>así aparece en el mensaje, ej.: Mamá, Don Luis</small><input id="c-patient" value="${esc(c.patient)}" autocomplete="name"></label>
+      <div class="fam">${c.family.map((f,i)=>`<div class="fam-row">
+        <label for="c-fn-${i}">Familiar<input id="c-fn-${i}" data-fn="${i}" value="${esc(f.name)}" placeholder="Ej.: Carolina (hija)"></label>
+        <label for="c-fp-${i}">Celular WhatsApp<input id="c-fp-${i}" data-fp="${i}" type="tel" inputmode="tel" value="${esc(f.phone)}" placeholder="+56 9 1234 5678"></label>
+        <button type="button" data-frm="${i}" aria-label="Quitar familiar">×</button></div>`).join("")}
+        <div><button type="button" class="btn ghost sm" data-act="fam-add">+ Agregar otro familiar</button></div>
+      </div>
+      <label class="switch" for="c-ask"><input type="checkbox" id="c-ask" ${c.askAfter?"checked":""}> Mostrar el aviso a la familia después de cada toma</label>
+      <div class="err" id="c-err" hidden></div>
+      <div class="sheet-actions"><span></span><div class="actions"><button type="button" class="btn" data-act="close">Cancelar</button><button type="submit" class="btn primary">Guardar</button></div></div>
+    </form>`;
+  } else if(sheet.type==="done"){
+    const e = logs.find(x=>x.id===sheet.logId); if(!e){ closeSheet(); return; }
+    const d = new Date(e.at);
+    const fam = cfg.family.filter(f=>f.name && waNumber(f.phone).length>=10);
+    body = `<div class="sheet done-box" role="dialog" aria-labelledby="d-h">
+      <div class="check" aria-hidden="true">✓</div>
+      <h2 id="d-h">Toma registrada</h2>
+      <div><b>${esc(e.name)}</b> · ${fmtQty(e.dose)} ${(UNITS[e.unit]||UNITS.unidades)[e.dose===1?0:1]}<div class="stamp">${cap(fmtDate(d))}, ${hmOf(d)}</div></div>
+      ${fam.length ? `<div class="wa-list">${fam.map(f=>{ const sent=(e.avisos||[]).includes(f.name); return `<a class="wa ${sent?"sent":""}" href="${waLink(f,e)}" target="_blank" rel="noopener" data-wa="${esc(f.name)}" data-log="${e.id}">${WA_ICON}${sent?`Aviso abierto para ${esc(f.name)}`:`Avisar a ${esc(f.name)} por WhatsApp`}</a>`; }).join("")}</div>
+        <p class="note" style="margin:0">Se abre WhatsApp con el mensaje listo; toca “Enviar”.</p>`
+      : `<button class="btn" data-act="family">Agregar un familiar para avisarle por WhatsApp</button>`}
+      <button class="btn primary" data-act="close" style="min-height:52px">Listo</button>
+    </div>`;
+  }
+  $("#sheet-root").innerHTML = `<div class="sheet-bg" data-act="close-bg">${body}</div>`;
+}
+function readMedForm(){
+  const e = sheet.e;
+  e.name=$("#f-name").value.trim(); e.unit=$("#f-unit").value;
+  e.pres=parseFloat($("#f-pres").value)||0; e.dose=parseFloat($("#f-dose").value)||0;
+  e.stock=parseFloat($("#f-stock").value); if(isNaN(e.stock)) e.stock=0;
+  e.note=$("#f-note").value.trim();
+  e.times=[...document.querySelectorAll("[data-ti]")].map(i=>i.value).filter(Boolean);
+}
+function readFamForm(){
+  const c = sheet.c;
+  c.patient = $("#c-patient").value.trim();
+  c.family = c.family.map((f,i)=>({name:($(`#c-fn-${i}`)?.value||"").trim(), phone:($(`#c-fp-${i}`)?.value||"").trim()}));
+  c.askAfter = $("#c-ask").checked;
+}
+const presetTimes = n => n==1?["08:00"]:n==2?["08:00","20:00"]:["06:00","14:00","22:00"];
+function afterTake(e){ if(e && cfg.askAfter!==false) openDone(e); else if(e) toast(`Registrado: ${e.name} a las ${hmOf(new Date(e.at))}`); }
+
+/* ---------- alarma ---------- */
+let ringing=null, alarmAudio=null, soundOn=false, wakeLock=null;
+const snoozed = {};
+// Sonido de alarma como archivo de audio (en iPhone suena aunque el interruptor de silencio esté activado)
+function alarmWavURL(){
+  const sr=22050, secs=2.4, n=Math.floor(sr*secs), buf=new ArrayBuffer(44+n*2), v=new DataView(buf);
+  const w=(o,str)=>{ for(let i=0;i<str.length;i++) v.setUint8(o+i,str.charCodeAt(i)); };
+  w(0,"RIFF"); v.setUint32(4,36+n*2,true); w(8,"WAVE"); w(12,"fmt "); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,"data"); v.setUint32(40,n*2,true);
+  const beeps=[[0,880],[0.28,880],[0.56,1175],[1.1,880],[1.38,880],[1.66,1175]];
+  for(let i=0;i<n;i++){ const t=i/sr; let x=0;
+    for(const [st,f] of beeps){ const d=t-st; if(d>=0 && d<0.22){ const env=Math.min(1,d/0.01,(0.22-d)/0.03); x+=Math.sin(2*Math.PI*f*d)*env; } }
+    v.setInt16(44+i*2, Math.max(-1,Math.min(1,x))*0.9*32767, true); }
+  return URL.createObjectURL(new Blob([buf],{type:"audio/wav"}));
+}
+function ensureAudio(){ if(!alarmAudio){ alarmAudio=new Audio(alarmWavURL()); alarmAudio.loop=true; alarmAudio.volume=1; alarmAudio.preload="auto"; } return alarmAudio; }
+function startRing(){ if(!soundOn) return; const a=ensureAudio(); a.loop=true; a.currentTime=0; a.play().catch(()=>{}); }
+function stopRing(){ if(alarmAudio){ alarmAudio.pause(); alarmAudio.currentTime=0; } }
+async function keepAwake(){ try{ if(navigator.wakeLock){ wakeLock = await navigator.wakeLock.request("screen"); } }catch(e){} }
+function checkAlarms(){
+  if(ringing) return;
+  const now=new Date(), hm=nowHM();
+  for(const {m,t,log} of todayDoses()){
+    if(log || t>hm) continue;
+    const [h,mi]=t.split(":").map(Number);
+    if(now - new Date(now.getFullYear(),now.getMonth(),now.getDate(),h,mi) > 60*60*1000) continue;
+    const k=m.id+"|"+t; if(snoozed[k] && Date.now()<snoozed[k]) continue;
+    showAlarm(m,t); break;
+  }
+}
+function showAlarm(m,t){
+  ringing={id:m.id,t};
+  $("#alarm-root").innerHTML = `<div class="alarm" role="alertdialog" aria-labelledby="al-h"><div class="ring" aria-hidden="true"></div><div class="big">${t}</div><h2 id="al-h">${esc(m.name)}</h2><p>Toma ${fmtQty(m.dose)} ${u(m,m.dose)}${m.note?` · ${esc(m.note)}`:""}</p>
+    ${soundOn?"":`<p style="font-size:1rem">El sonido está desactivado: toca “Activar sonido” al abrir la app.</p>`}<button class="btn primary" data-act="al-take">Ya lo tomé</button><button class="btn ghost" data-act="al-snooze">Recordar en 10 minutos</button><button class="btn ghost" data-act="al-skip">Omitir esta toma</button></div>`;
+  startRing();
+  try{ navigator.vibrate && navigator.vibrate([600,300,600,300,600]); }catch(e){}
+}
+function closeAlarm(){ stopRing(); ringing=null; $("#alarm-root").innerHTML=""; setTimeout(checkAlarms,300); }
+
+/* ---------- eventos ---------- */
+document.addEventListener("click", ev=>{
+  const wa = ev.target.closest("[data-wa]");
+  if(wa){ const name=wa.dataset.wa, id=wa.dataset.log; setTimeout(()=>{ markAviso(id,name); if(sheet&&sheet.type==="done") drawSheet(); },400); return; }
+  const b = ev.target.closest("[data-act],[data-preset],[data-rm],[data-frm]"); if(!b) return;
+  const act=b.dataset.act, m=meds.find(x=>x.id===b.dataset.id);
+  if(b.dataset.preset){ readMedForm(); sheet.e.times=presetTimes(+b.dataset.preset); drawSheet(); return; }
+  if(b.dataset.rm!==undefined){ readMedForm(); sheet.e.times.splice(+b.dataset.rm,1); drawSheet(); return; }
+  if(b.dataset.frm!==undefined){ readFamForm(); sheet.c.family.splice(+b.dataset.frm,1); drawSheet(); return; }
+  switch(act){
+    case "add": openMed(null); break;
+    case "example": loadExample(); break;
+    case "family": openFamily(); break;
+    case "take": afterTake(takeDose(m,b.dataset.t)); break;
+    case "undo": undoDose(m,b.dataset.t); break;
+    case "refill": saveMed({...m, stock:+(m.stock+m.pres).toFixed(2)}); toast(`Saldo de ${m.name}: ${fmtQty(m.stock+m.pres)}`); break;
+    case "edit": openMed(m); break;
+    case "add-time": readMedForm(); sheet.e.times.push(sheet.e.times.at(-1)||"08:00"); drawSheet(); break;
+    case "fam-add": readFamForm(); sheet.c.family.push({name:"",phone:""}); drawSheet(); break;
+    case "close": closeSheet(); break;
+    case "close-bg": if(ev.target===b) closeSheet(); break;
+    case "del": readMedForm(); confirmDel=true; drawSheet(); break;
+    case "del-no": readMedForm(); confirmDel=false; drawSheet(); break;
+    case "del-yes": removeMed(sheet.e.id); closeSheet(); break;
+    case "more": histDays += 14; renderHistory(); break;
+    case "copy": {
+      const txt = historyText();
+      const fallback = () => { const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy"); toast("Historial copiado");}catch(e){ toast("Mantén presionado el texto para copiarlo"); } ta.remove(); };
+      try{ navigator.clipboard.writeText(txt).then(()=>toast("Historial copiado"), fallback); }catch(e){ fallback(); }
+      break;
+    }
+    case "csv": downloadCSV(); break;
+    case "al-take": { const mm=meds.find(x=>x.id===ringing.id); const e = mm ? takeDose(mm,ringing.t) : null; closeAlarm(); afterTake(e); break; }
+    case "al-snooze": snoozed[ringing.id+"|"+ringing.t]=Date.now()+10*60*1000; closeAlarm(); break;
+    case "al-skip": { const mm=meds.find(x=>x.id===ringing.id); if(mm) skipDose(mm,ringing.t); closeAlarm(); break; }
+  }
+});
+document.addEventListener("input", ev=>{
+  if(sheet && sheet.type==="med" && ev.target.closest("#f")){ readMedForm(); $("#f-prev").innerHTML = previewText(sheet.e); }
+});
+document.addEventListener("change", ev=>{ if(ev.target.id==="hist-filter"){ histFilter=ev.target.value; renderHistory(); } });
+document.addEventListener("submit", ev=>{
+  ev.preventDefault();
+  if(ev.target.id==="f"){
+    readMedForm(); const e=sheet.e, err=$("#f-err");
+    const problem = !e.name?"Escribe el nombre del medicamento.":e.pres<=0?"Indica cuántas unidades trae la presentación.":e.dose<=0?"Indica la cantidad que te indicó el médico por toma.":!e.times.length?"Agrega al menos un horario de toma.":"";
+    if(problem){ err.textContent=problem; err.hidden=false; return; }
+    const m = {...e, times:[...new Set(e.times)].sort()}; delete m.example; delete m.taken;
+    closeSheet(); saveMed(m);
+  } else if(ev.target.id==="fam-form"){
+    readFamForm(); const c=sheet.c, err=$("#c-err");
+    c.family = c.family.filter(f=>f.name||f.phone);
+    const bad = c.family.find(f=>!f.name || waNumber(f.phone).length<10);
+    if(bad){ err.textContent = !bad.name ? "Escribe el nombre de cada familiar." : `Revisa el celular de ${bad.name}: usa el formato +56 9 1234 5678.`; err.hidden=false; return; }
+    closeSheet(); saveCfg(c); toast("Familia guardada");
+  }
+});
+let downloads = null;
+async function downloadCSV(){
+  if(!downloads) return;
+  try{ await downloads.save({filename:`historial-tomas-${dayKey()}.csv`, data:new Blob([historyCSV()],{type:"text/csv"})}); }
+  catch(e){ if(e && e.code!=="declined") toast("No se pudo descargar. Usa “Copiar”."); }
+}
+$("#add-btn").addEventListener("click", ()=>openMed(null));
+$("#sound-btn").addEventListener("click", ()=>{
+  const a = ensureAudio();
+  if(!soundOn){
+    soundOn = true;
+    a.loop=false; a.currentTime=0;
+    a.play().then(()=>{ setTimeout(()=>{ a.pause(); a.loop=true; },2400); }).catch(()=>{ soundOn=false; $("#sound-text").textContent="El teléfono no dejó reproducir el sonido. Sube el volumen y vuelve a tocar el botón."; });
+    $("#sound-text").textContent = "Sonido activado: deberías haber escuchado la alarma. Deja la app abierta y la pantalla encendida para que suene a la hora.";
+    $("#sound-btn").textContent = "Probar alarma";
+    keepAwake();
+  } else {
+    a.loop=false; a.currentTime=0; a.play().catch(()=>{});
+  }
+});
+function loadExample(){
+  [{id:uid(), name:"Losartán 50 mg", unit:"comprimidos", pres:30, stock:12, dose:1, times:["08:00","20:00"], note:"Presión arterial", example:true},
+   {id:uid(), name:"Metformina 850 mg", unit:"comprimidos", pres:60, stock:44, dose:1, times:["09:00","14:00","21:00"], note:"Con las comidas", example:true}].forEach(saveMed);
+}
+
+initStore();
+if(window.claude && window.claude.use){ window.claude.use("downloads").then(d=>{ downloads=d; if(d) $("#csv-btn").hidden=false; }).catch(()=>{}); }
+setInterval(()=>{ checkAlarms(); renderToday(); }, 20000);
+setTimeout(checkAlarms, 1500);
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden){ render(); checkAlarms(); if(soundOn) keepAwake(); } });
+})();
+</script>
+
+</body></html>
